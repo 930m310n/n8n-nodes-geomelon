@@ -2,6 +2,8 @@
 
 [n8n](https://n8n.io) community node for the **[Geomelon](https://geomelon.dev) geographic API** — search cities, look up countries and regions, compute distances, and resolve coordinates, all with multilingual name support.
 
+Looking for other ways to integrate? See all official libraries at [geomelon.dev/libraries](https://geomelon.dev/libraries/).
+
 ## Installation
 
 In your n8n instance: **Settings → Community Nodes → Install** → enter `n8n-nodes-geomelon`.
