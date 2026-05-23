@@ -215,16 +215,16 @@ export class Geomelon implements INodeType {
         displayName: 'Min Population',
         name: 'minPopulation',
         type: 'number',
-        default: '',
-        description: 'Minimum population filter',
+        default: 0,
+        description: 'Minimum population filter (leave 0 to skip)',
         displayOptions: { show: { resource: ['city'], operation: ['search'] } },
       },
       {
         displayName: 'Max Population',
         name: 'maxPopulation',
         type: 'number',
-        default: '',
-        description: 'Maximum population filter',
+        default: 0,
+        description: 'Maximum population filter (leave 0 to skip)',
         displayOptions: { show: { resource: ['city'], operation: ['search'] } },
       },
       {
@@ -511,8 +511,8 @@ export class Geomelon implements INodeType {
             const name = this.getNodeParameter('name', i, '') as string;
             const countryCode = this.getNodeParameter('countryCode', i, '') as string;
             const regionId = this.getNodeParameter('regionId', i, '') as string;
-            const minPopulation = this.getNodeParameter('minPopulation', i, '') as number | string;
-            const maxPopulation = this.getNodeParameter('maxPopulation', i, '') as number | string;
+            const minPopulation = this.getNodeParameter('minPopulation', i, 0) as number;
+            const maxPopulation = this.getNodeParameter('maxPopulation', i, 0) as number;
             const sort = this.getNodeParameter('sort', i) as string;
             const preferredLanguages = this.getNodeParameter('preferredLanguages', i, '') as string;
             const limit = this.getNodeParameter('limit', i) as number;
@@ -520,8 +520,8 @@ export class Geomelon implements INodeType {
             if (name) params.name = name;
             if (countryCode) params.countryCode = countryCode;
             if (regionId) params.regionId = regionId;
-            if (minPopulation !== '' && minPopulation !== undefined) params.minPopulation = Number(minPopulation);
-            if (maxPopulation !== '' && maxPopulation !== undefined) params.maxPopulation = Number(maxPopulation);
+            if (minPopulation > 0) params.minPopulation = minPopulation;
+            if (maxPopulation > 0) params.maxPopulation = maxPopulation;
             if (sort) params.sort = sort;
             if (preferredLanguages) params.preferredLanguages = preferredLanguages;
             params.limit = limit;
