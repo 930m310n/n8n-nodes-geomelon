@@ -1,0 +1,57 @@
+{
+  "name": "n8n-nodes-geomelon",
+  "version": "1.0.0",
+  "description": "n8n community node for the Geomelon geographic API — cities, countries, regions, and languages with multilingual support",
+  "keywords": [
+    "n8n-community-node-package",
+    "geomelon",
+    "geography",
+    "cities",
+    "countries",
+    "geocoding"
+  ],
+  "license": "MIT",
+  "homepage": "https://geomelon.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/930m310n/n8n-nodes-geomelon.git"
+  },
+  "bugs": {
+    "url": "https://github.com/930m310n/n8n-nodes-geomelon/issues"
+  },
+  "author": {
+    "name": "Geomelon"
+  },
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "credentials": [
+      "dist/credentials/GeomelonApi.credentials.js"
+    ],
+    "nodes": [
+      "dist/nodes/Geomelon/Geomelon.node.js"
+    ]
+  },
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "prepublishOnly": "npm run build"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "dependencies": {
+    "geomelon": "^1.0.7"
+  },
+  "peerDependencies": {
+    "n8n-workflow": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "n8n-workflow": "^1.120.0",
+    "typescript": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

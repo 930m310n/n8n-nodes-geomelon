@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60">
+  <circle cx="30" cy="30" r="28" fill="#1a73e8"/>
+  <!-- globe grid lines -->
+  <ellipse cx="30" cy="30" rx="10" ry="28" fill="none" stroke="#fff" stroke-width="1.5" opacity="0.6"/>
+  <ellipse cx="30" cy="30" rx="20" ry="28" fill="none" stroke="#fff" stroke-width="1.5" opacity="0.6"/>
+  <line x1="2" y1="30" x2="58" y2="30" stroke="#fff" stroke-width="1.5" opacity="0.6"/>
+  <line x1="4" y1="18" x2="56" y2="18" stroke="#fff" stroke-width="1.5" opacity="0.4"/>
+  <line x1="4" y1="42" x2="56" y2="42" stroke="#fff" stroke-width="1.5" opacity="0.4"/>
+  <!-- pin -->
+  <circle cx="30" cy="24" r="5" fill="#fff"/>
+  <path d="M30 29 Q26 34 30 42 Q34 34 30 29Z" fill="#fff"/>
+</svg>
