@@ -55,6 +55,10 @@ The node uses a **Geomelon API (RapidAPI)** credential. You need a RapidAPI key 
 | **List** | List languages available in the Geomelon database |
 | **Get** | Get details for a language by UUID |
 
+## Oneshot prefix search (free, no API key)
+
+Fast country-scoped city prefix search served as static files. No RapidAPI subscription or credentials needed. See [geomelon.dev/free-city-autocomplete-api](https://geomelon.dev/free-city-autocomplete-api/) for the HTTP endpoint, supported country/language pairs, and response shape. Use an **HTTP Request** node to call it directly — this n8n node does not wrap the oneshot endpoint.
+
 ## Output
 
 - **List / Search** operations output one item per result, so downstream nodes can iterate naturally.
