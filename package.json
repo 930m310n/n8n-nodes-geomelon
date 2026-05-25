@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-geomelon",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "n8n community node for the Geomelon geographic API — cities, countries, regions, and languages with multilingual support",
   "keywords": [
     "n8n-community-node-package",
