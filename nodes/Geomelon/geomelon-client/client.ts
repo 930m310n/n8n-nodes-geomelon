@@ -20,13 +20,28 @@ import type {
   SettlementTypeDto,
   TranslationsParams,
 } from './types';
-import { GeomelonError } from './errors';
+import type { INode, JsonObject } from 'n8n-workflow';
+import { NodeApiError } from 'n8n-workflow';
 import { VERSION } from './version';
+
+/**
+ * A single HTTP call, shaped to match n8n's `this.helpers.httpRequest`
+ * closely enough to pass straight through — see the adapter built in
+ * `Geomelon.node.ts`. n8n's helper owns timeout/abort handling internally,
+ * which is why this client no longer touches timers itself (see README).
+ */
+export interface HttpRequestOptions {
+  url: string;
+  headers: Record<string, string>;
+  timeout?: number;
+  signal?: AbortSignal;
+}
+export type HttpRequestFn = (options: HttpRequestOptions) => Promise<unknown>;
 
 export interface GeomelonClientConfig {
   /**
    * RapidAPI key. Optional: without it only the free keyless oneshot
-   * autocomplete is available — every other endpoint throws GeomelonError.
+   * autocomplete is available — every other endpoint throws NodeApiError.
    */
   apiKey?: string;
   host?: string;
@@ -36,11 +51,6 @@ export interface GeomelonClientConfig {
    * don't count toward your RapidAPI plan.
    */
   freeOneshot?: boolean;
-  /**
-   * Number of retries on 429/5xx responses, timeouts, and network errors,
-   * with exponential backoff. Default 0 (no retries).
-   */
-  retries?: number;
   /** Default per-request timeout in milliseconds. Default: no timeout. */
   timeoutMs?: number;
 }
@@ -55,15 +65,9 @@ const DEFAULT_HOST = 'geomelon.p.rapidapi.com';
 const ONESHOT_FREE_HOST = 'oneshot.geomelon.dev';
 
 const MISSING_KEY_MESSAGE =
-  'This endpoint requires an API key: new GeomelonClient({ apiKey }). ' +
+  'This endpoint requires an API key: new GeomelonClient(httpRequest, { apiKey }). ' +
   'Get one at https://rapidapi.com/hom3chuk/api/geomelon. ' +
   'The oneshot autocomplete works without a key: client.oneshot.search(...)';
-
-// Cloudflare on the free oneshot host rejects some default library
-// user agents, so Node requests identify themselves explicitly.
-// Browsers forbid setting User-Agent and would fail the whole request.
-declare const process: { versions?: { node?: string } } | undefined;
-const IS_NODE = typeof process !== 'undefined' && !!process?.versions?.node;
 
 type Params = Record<string, string | number | boolean | undefined>;
 
@@ -83,114 +87,69 @@ function seg(value: string): string {
   return encodeURIComponent(value);
 }
 
-function backoffMs(attempt: number): number {
-  return Math.min(500 * 2 ** attempt, 8000);
+function errorStatus(err: unknown): number | undefined {
+  const e = err as { response?: { status?: number }; statusCode?: number; httpCode?: string | number };
+  if (typeof e?.response?.status === 'number') return e.response.status;
+  if (typeof e?.statusCode === 'number') return e.statusCode;
+  if (e?.httpCode !== undefined) return Number(e.httpCode);
+  return undefined;
 }
 
-function sleep(ms: number, signal?: AbortSignal): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (signal?.aborted) {
-      reject(signal.reason ?? new Error('The operation was aborted'));
-      return;
-    }
-    const onAbort = () => {
-      clearTimeout(timer);
-      reject(signal?.reason ?? new Error('The operation was aborted'));
-    };
-    const timer = setTimeout(() => {
-      signal?.removeEventListener('abort', onAbort);
-      resolve();
-    }, ms);
-    signal?.addEventListener('abort', onAbort, { once: true });
-  });
+function errorBody(err: unknown): string | undefined {
+  const data = (err as { response?: { data?: unknown } })?.response?.data;
+  if (data === undefined) return undefined;
+  return typeof data === 'string' ? data : JSON.stringify(data);
 }
 
 interface TransportConfig {
   host: string;
   apiKey?: string;
-  retries: number;
   timeoutMs?: number;
   /** When set, requests without an apiKey fail with this message. */
   missingKeyMessage?: string;
 }
 
 class Transport {
-  constructor(private readonly config: TransportConfig) {}
+  constructor(
+    private readonly node: INode,
+    private readonly httpRequest: HttpRequestFn,
+    private readonly config: TransportConfig,
+  ) {}
 
   async request<T>(path: string, params?: Params, options?: RequestOptions): Promise<T> {
-    const { host, apiKey, retries, missingKeyMessage } = this.config;
+    const { host, apiKey, missingKeyMessage } = this.config;
     if (!apiKey && missingKeyMessage) {
-      throw new GeomelonError(missingKeyMessage);
+      throw new NodeApiError(this.node, { message: missingKeyMessage } as JsonObject, {
+        message: missingKeyMessage,
+      });
     }
     const url = buildUrl(host, path, params);
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (IS_NODE) {
-      headers['User-Agent'] = `geomelon-ts/${VERSION}`;
-    }
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'User-Agent': `geomelon-n8n/${VERSION}`,
+    };
     if (apiKey) {
       headers['x-rapidapi-host'] = host;
       headers['x-rapidapi-key'] = apiKey;
     }
 
-    for (let attempt = 0; ; attempt++) {
-      let res: Response;
-      try {
-        res = await this.fetchWithTimeout(url, headers, options);
-      } catch (err) {
-        // A caller-initiated abort is not retried and not wrapped.
-        if (options?.signal?.aborted) throw err;
-        if (attempt < retries) {
-          await sleep(backoffMs(attempt), options?.signal);
-          continue;
-        }
-        if (err instanceof GeomelonError) throw err;
-        const reason = err instanceof Error ? err.message : String(err);
-        throw new GeomelonError(`Geomelon API request failed: ${reason}`, { url, cause: err });
-      }
-      if (res.ok) {
-        return res.json() as Promise<T>;
-      }
-      const body = await res.text().catch(() => '');
-      if (attempt < retries && (res.status === 429 || res.status >= 500)) {
-        await sleep(backoffMs(attempt), options?.signal);
-        continue;
-      }
-      throw new GeomelonError(`Geomelon API error ${res.status}: ${body}`, {
-        status: res.status,
-        body,
-        url,
-      });
-    }
-  }
-
-  private async fetchWithTimeout(
-    url: string,
-    headers: Record<string, string>,
-    options?: RequestOptions,
-  ): Promise<Response> {
-    const timeoutMs = options?.timeoutMs ?? this.config.timeoutMs;
-    const signal = options?.signal;
-    if (timeoutMs === undefined) {
-      return fetch(url, { headers, signal });
-    }
-    const controller = new AbortController();
-    const onAbort = () => controller.abort(signal?.reason);
-    if (signal) {
-      if (signal.aborted) controller.abort(signal.reason);
-      else signal.addEventListener('abort', onAbort, { once: true });
-    }
-    const timer = setTimeout(
-      () =>
-        controller.abort(
-          new GeomelonError(`Geomelon API request timed out after ${timeoutMs} ms`, { url }),
-        ),
-      timeoutMs,
-    );
     try {
-      return await fetch(url, { headers, signal: controller.signal });
-    } finally {
-      clearTimeout(timer);
-      signal?.removeEventListener('abort', onAbort);
+      return (await this.httpRequest({
+        url,
+        headers,
+        timeout: options?.timeoutMs ?? this.config.timeoutMs,
+        signal: options?.signal,
+      })) as T;
+    } catch (err) {
+      const status = errorStatus(err);
+      const body = errorBody(err);
+      const reason = err instanceof Error ? err.message : String(err);
+      throw new NodeApiError(this.node, { message: reason, body: body ?? null, url } as JsonObject, {
+        message:
+          status !== undefined ? `Geomelon API error ${status}` : 'Geomelon API request failed',
+        description: body ?? reason,
+        httpCode: status !== undefined ? String(status) : undefined,
+      });
     }
   }
 }
@@ -326,17 +285,20 @@ class OneshotClient {
 }
 
 /**
- * Entry point for the Geomelon API.
+ * Entry point for the Geomelon API. Unlike the standalone `geomelon` npm
+ * client this is forked from, requests are not made directly — the caller
+ * supplies an `httpRequest` function (in this package, an adapter over
+ * n8n's `this.helpers.httpRequest`, see `Geomelon.node.ts`).
  *
  * ```ts
- * const client = new GeomelonClient({ apiKey: 'YOUR_RAPIDAPI_KEY' });
+ * const client = new GeomelonClient(this.getNode(), httpRequest, { apiKey: 'YOUR_RAPIDAPI_KEY' });
  * await client.cities.search({ name: 'barc', countryCode: 'ES' });
  * ```
  *
  * Without an API key only the free oneshot autocomplete is available:
  *
  * ```ts
- * const client = new GeomelonClient();
+ * const client = new GeomelonClient(this.getNode(), httpRequest);
  * await client.oneshot.search('es', 'es', 'barc');
  * ```
  *
@@ -351,14 +313,12 @@ export class GeomelonClient {
   readonly languages: LanguagesClient;
   readonly oneshot: OneshotClient;
 
-  constructor(config: GeomelonClientConfig = {}) {
+  constructor(node: INode, httpRequest: HttpRequestFn, config: GeomelonClientConfig = {}) {
     const host = config.host ?? DEFAULT_HOST;
-    const retries = config.retries ?? 0;
     const timeoutMs = config.timeoutMs;
-    const transport = new Transport({
+    const transport = new Transport(node, httpRequest, {
       host,
       apiKey: config.apiKey,
-      retries,
       timeoutMs,
       missingKeyMessage: MISSING_KEY_MESSAGE,
     });
@@ -367,7 +327,7 @@ export class GeomelonClient {
     this.regions = new RegionsClient(transport);
     this.languages = new LanguagesClient(transport);
     if (!config.apiKey || config.freeOneshot) {
-      const freeTransport = new Transport({ host: ONESHOT_FREE_HOST, retries, timeoutMs });
+      const freeTransport = new Transport(node, httpRequest, { host: ONESHOT_FREE_HOST, timeoutMs });
       this.oneshot = new OneshotClient(freeTransport);
     } else {
       this.oneshot = new OneshotClient(transport, '/cities/oneshot');

@@ -4,8 +4,10 @@ import type {
   INodeExecutionData,
   INodeType,
   INodeTypeDescription,
+  JsonObject,
 } from 'n8n-workflow';
-import { NodeOperationError } from 'n8n-workflow';
+import { NodeApiError, NodeConnectionTypes, NodeOperationError } from 'n8n-workflow';
+import type { HttpRequestFn } from './geomelon-client/client';
 import { GeomelonClient } from './geomelon-client/client';
 
 export class Geomelon implements INodeType {
@@ -18,8 +20,8 @@ export class Geomelon implements INodeType {
     subtitle: '={{$parameter["resource"] + ": " + $parameter["operation"]}}',
     description: 'Geographic data — cities, countries, regions, and languages via the Geomelon API',
     defaults: { name: 'Geomelon' },
-    inputs: ['main'],
-    outputs: ['main'],
+    inputs: [NodeConnectionTypes.Main],
+    outputs: [NodeConnectionTypes.Main],
     usableAsTool: true,
     credentials: [
       {
@@ -53,36 +55,6 @@ export class Geomelon implements INodeType {
         displayOptions: { show: { resource: ['city'] } },
         options: [
           {
-            name: 'Search',
-            value: 'search',
-            description: 'Search cities by name, country, population range, and more',
-            action: 'Search cities',
-          },
-          {
-            name: 'Get',
-            value: 'get',
-            description: 'Get full details for a city by UUID',
-            action: 'Get a city',
-          },
-          {
-            name: 'Get Translations',
-            value: 'getTranslations',
-            description: 'Get all name translations for a city',
-            action: 'Get city translations',
-          },
-          {
-            name: 'Get Settlement Types',
-            value: 'getSettlementTypes',
-            description: 'Get settlement-type classifications for a city',
-            action: 'Get city settlement types',
-          },
-          {
-            name: 'Distance',
-            value: 'distance',
-            description: 'Calculate the distance in kilometres between two cities',
-            action: 'Get distance between two cities',
-          },
-          {
             name: 'By Coordinates (Closest)',
             value: 'byCoordinatesClosest',
             description: 'Find cities nearest to given coordinates, ordered by distance',
@@ -95,11 +67,41 @@ export class Geomelon implements INodeType {
             action: 'Find largest cities by coordinates',
           },
           {
+            name: 'Distance',
+            value: 'distance',
+            description: 'Calculate the distance in kilometres between two cities',
+            action: 'Get distance between two cities',
+          },
+          {
+            name: 'Get',
+            value: 'get',
+            description: 'Get full details for a city by UUID',
+            action: 'Get a city',
+          },
+          {
+            name: 'Get Settlement Types',
+            value: 'getSettlementTypes',
+            description: 'Get settlement-type classifications for a city',
+            action: 'Get city settlement types',
+          },
+          {
+            name: 'Get Translations',
+            value: 'getTranslations',
+            description: 'Get all name translations for a city',
+            action: 'Get city translations',
+          },
+          {
             name: 'Oneshot Autocomplete',
             value: 'oneshotAutocomplete',
             description:
               'Free, keyless prefix search against pre-built static files — no RapidAPI credential needed',
             action: 'Search cities with oneshot autocomplete',
+          },
+          {
+            name: 'Search',
+            value: 'search',
+            description: 'Search cities by name, country, population range, and more',
+            action: 'Search cities',
           },
         ],
         default: 'search',
@@ -114,16 +116,16 @@ export class Geomelon implements INodeType {
         displayOptions: { show: { resource: ['country'] } },
         options: [
           {
-            name: 'List',
-            value: 'list',
-            description: 'List countries with optional filtering',
-            action: 'List countries',
-          },
-          {
             name: 'Get',
             value: 'get',
             description: 'Get full details for a country by UUID',
             action: 'Get a country',
+          },
+          {
+            name: 'Get Regions',
+            value: 'getRegions',
+            description: 'Get all administrative regions belonging to a country',
+            action: 'Get country regions',
           },
           {
             name: 'Get Translations',
@@ -132,10 +134,10 @@ export class Geomelon implements INodeType {
             action: 'Get country translations',
           },
           {
-            name: 'Get Regions',
-            value: 'getRegions',
-            description: 'Get all administrative regions belonging to a country',
-            action: 'Get country regions',
+            name: 'List',
+            value: 'list',
+            description: 'List countries with optional filtering',
+            action: 'List countries',
           },
         ],
         default: 'list',
@@ -150,12 +152,6 @@ export class Geomelon implements INodeType {
         displayOptions: { show: { resource: ['region'] } },
         options: [
           {
-            name: 'List',
-            value: 'list',
-            description: 'List administrative regions, optionally filtered by country',
-            action: 'List regions',
-          },
-          {
             name: 'Get',
             value: 'get',
             description: 'Get full details for a region by UUID',
@@ -166,6 +162,12 @@ export class Geomelon implements INodeType {
             value: 'getTranslations',
             description: 'Get name translations for a region',
             action: 'Get region translations',
+          },
+          {
+            name: 'List',
+            value: 'list',
+            description: 'List administrative regions, optionally filtered by country',
+            action: 'List regions',
           },
         ],
         default: 'list',
@@ -180,16 +182,16 @@ export class Geomelon implements INodeType {
         displayOptions: { show: { resource: ['language'] } },
         options: [
           {
-            name: 'List',
-            value: 'list',
-            description: 'List languages available in Geomelon',
-            action: 'List languages',
-          },
-          {
             name: 'Get',
             value: 'get',
             description: 'Get details for a language by UUID',
             action: 'Get a language',
+          },
+          {
+            name: 'List',
+            value: 'list',
+            description: 'List languages available in Geomelon',
+            action: 'List languages',
           },
         ],
         default: 'list',
@@ -246,10 +248,10 @@ export class Geomelon implements INodeType {
         name: 'sort',
         type: 'options',
         options: [
-          { name: 'Population Descending', value: 'population_desc' },
-          { name: 'Population Ascending', value: 'population_asc' },
           { name: 'Name A → Z', value: 'name_asc' },
           { name: 'Name Z → A', value: 'name_desc' },
+          { name: 'Population Ascending', value: 'population_asc' },
+          { name: 'Population Descending', value: 'population_desc' },
         ],
         default: 'population_desc',
         displayOptions: { show: { resource: ['city'], operation: ['search'] } },
@@ -273,7 +275,7 @@ export class Geomelon implements INodeType {
         name: 'limit',
         type: 'number',
         typeOptions: { minValue: 1, maxValue: 100 },
-        default: 20,
+        default: 50,
         description: 'Max number of results to return',
         displayOptions: { show: { resource: ['city'], operation: ['search'] } },
       },
@@ -545,7 +547,9 @@ export class Geomelon implements INodeType {
       // No credential attached — fine as long as every item only uses the
       // keyless Oneshot Autocomplete operation, which needs none.
     }
-    const client = new GeomelonClient(apiKey ? { apiKey } : {});
+    const httpRequest: HttpRequestFn = ({ url, headers, timeout, signal }) =>
+      this.helpers.httpRequest({ url, headers, timeout, abortSignal: signal, json: true });
+    const client = new GeomelonClient(this.getNode(), httpRequest, apiKey ? { apiKey } : {});
 
     const items = this.getInputData();
     const returnData: INodeExecutionData[] = [];
@@ -684,7 +688,18 @@ export class Geomelon implements INodeType {
           });
           continue;
         }
-        throw error;
+        if (error instanceof NodeOperationError) {
+          throw new NodeOperationError(this.getNode(), error.message, { itemIndex: i });
+        }
+        if (error instanceof NodeApiError) {
+          throw new NodeApiError(this.getNode(), { message: error.message } as JsonObject, {
+            message: error.message,
+            httpCode: error.httpCode ?? undefined,
+          });
+        }
+        throw new NodeApiError(this.getNode(), { message: (error as Error).message } as JsonObject, {
+          message: (error as Error).message,
+        });
       }
     }
 
