@@ -1,0 +1,92 @@
+{
+  "id": "4279fa2a-7b0e-4b50-bdde-60b0bee05b47",
+  "name": "Nearest cities by coordinates",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "### Nearest cities by coordinates\nSet a lat/lon (defaults to Paris) and get the closest cities, ordered by distance. Swap the Edit Fields values for a real coordinate input (e.g. from a form or another node).",
+        "height": 220,
+        "width": 300
+      },
+      "id": "0241fe2f-684b-4857-bf89-032c6fccb067",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-160, -140]
+    },
+    {
+      "parameters": {},
+      "id": "8648b4eb-5091-4e5a-90e4-6b2aba2f12ba",
+      "name": "When clicking 'Execute workflow'",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [-160, 120]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1e39abd-0a18-4e77-afc6-ccd2e05a717d",
+              "name": "lat",
+              "value": 48.8566,
+              "type": "number"
+            },
+            {
+              "id": "dfdf0564-f54e-49e3-9902-88489dbdcd92",
+              "name": "lon",
+              "value": 2.3522,
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8ebdd05e-923e-463e-9f09-a0e320838578",
+      "name": "Coordinates",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [80, 120]
+    },
+    {
+      "parameters": {
+        "resource": "city",
+        "operation": "byCoordinatesClosest",
+        "lat": "={{ $json.lat }}",
+        "lon": "={{ $json.lon }}",
+        "preferredLanguages": "en"
+      },
+      "id": "0488de69-8e3c-472c-afc3-4f2f6730d503",
+      "name": "Geomelon",
+      "type": "n8n-nodes-geomelon.geomelon",
+      "typeVersion": 1,
+      "position": [320, 120],
+      "credentials": {
+        "geomelonApi": {
+          "id": null,
+          "name": "Geomelon API (RapidAPI)"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "When clicking 'Execute workflow'": {
+      "main": [
+        [
+          { "node": "Coordinates", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Coordinates": {
+      "main": [
+        [
+          { "node": "Geomelon", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

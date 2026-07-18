@@ -6,7 +6,7 @@ import type {
   INodeTypeDescription,
 } from 'n8n-workflow';
 import { NodeOperationError } from 'n8n-workflow';
-import { GeomelonClient } from 'geomelon';
+import { GeomelonClient } from './geomelon-client/client';
 
 export class Geomelon implements INodeType {
   description: INodeTypeDescription = {
@@ -20,7 +20,14 @@ export class Geomelon implements INodeType {
     defaults: { name: 'Geomelon' },
     inputs: ['main'],
     outputs: ['main'],
-    credentials: [{ name: 'geomelonApi', required: true }],
+    usableAsTool: true,
+    credentials: [
+      {
+        name: 'geomelonApi',
+        required: true,
+        displayOptions: { hide: { operation: ['oneshotAutocomplete'] } },
+      },
+    ],
     properties: [
       // ── Resource ──────────────────────────────────────────────────────────
       {
@@ -86,6 +93,13 @@ export class Geomelon implements INodeType {
             value: 'byCoordinatesLargest',
             description: 'Find the largest cities near given coordinates, ordered by population',
             action: 'Find largest cities by coordinates',
+          },
+          {
+            name: 'Oneshot Autocomplete',
+            value: 'oneshotAutocomplete',
+            description:
+              'Free, keyless prefix search against pre-built static files — no RapidAPI credential needed',
+            action: 'Search cities with oneshot autocomplete',
           },
         ],
         default: 'search',
@@ -339,6 +353,37 @@ export class Geomelon implements INodeType {
         },
       },
 
+      // City: Oneshot Autocomplete
+      {
+        displayName: 'Country Code',
+        name: 'countryCode',
+        type: 'string',
+        default: '',
+        required: true,
+        placeholder: 'ES',
+        description: 'ISO 3166-1 alpha-2 country code (case-insensitive)',
+        displayOptions: { show: { resource: ['city'], operation: ['oneshotAutocomplete'] } },
+      },
+      {
+        displayName: 'Language',
+        name: 'language',
+        type: 'string',
+        default: '',
+        required: true,
+        placeholder: 'es',
+        description: 'BCP 47 language code to search names in (case-insensitive)',
+        displayOptions: { show: { resource: ['city'], operation: ['oneshotAutocomplete'] } },
+      },
+      {
+        displayName: 'Prefix',
+        name: 'prefix',
+        type: 'string',
+        default: '',
+        required: true,
+        description: 'City name prefix as typed by the user; case, punctuation, and diacritics are normalized server-side',
+        displayOptions: { show: { resource: ['city'], operation: ['oneshotAutocomplete'] } },
+      },
+
       // ══════════════════════════════════════════════════════════════════════
       // Fields — Country
       // ══════════════════════════════════════════════════════════════════════
@@ -492,8 +537,15 @@ export class Geomelon implements INodeType {
   };
 
   async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
-    const credentials = await this.getCredentials('geomelonApi');
-    const client = new GeomelonClient({ apiKey: credentials.apiKey as string });
+    let apiKey: string | undefined;
+    try {
+      const credentials = await this.getCredentials('geomelonApi');
+      apiKey = credentials.apiKey as string;
+    } catch {
+      // No credential attached — fine as long as every item only uses the
+      // keyless Oneshot Autocomplete operation, which needs none.
+    }
+    const client = new GeomelonClient(apiKey ? { apiKey } : {});
 
     const items = this.getInputData();
     const returnData: INodeExecutionData[] = [];
@@ -552,6 +604,11 @@ export class Geomelon implements INodeType {
             const preferredLanguages = this.getNodeParameter('preferredLanguages', i, '') as string;
             const params = { lat, lon, ...(preferredLanguages ? { preferredLanguages } : {}) };
             result = await client.cities.byCoordinatesLargest(params);
+          } else if (operation === 'oneshotAutocomplete') {
+            const countryCode = this.getNodeParameter('countryCode', i) as string;
+            const language = this.getNodeParameter('language', i) as string;
+            const prefix = this.getNodeParameter('prefix', i) as string;
+            result = await client.oneshot.search(countryCode, language, prefix);
           }
         } else if (resource === 'country') {
           if (operation === 'list') {

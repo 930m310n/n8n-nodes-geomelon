@@ -30,6 +30,7 @@ The node uses a **Geomelon API (RapidAPI)** credential. You need a RapidAPI key 
 | **Distance** | Calculate the distance in kilometres between two cities |
 | **By Coordinates (Closest)** | Find cities nearest to a lat/lon point, ordered by distance |
 | **By Coordinates (Largest)** | Find the largest cities near a lat/lon point, ordered by population |
+| **Oneshot Autocomplete** | Free, keyless prefix search against pre-built static files — no RapidAPI credential needed |
 
 ### Country
 
@@ -57,7 +58,11 @@ The node uses a **Geomelon API (RapidAPI)** credential. You need a RapidAPI key 
 
 ## Oneshot prefix search (free, no API key)
 
-Fast country-scoped city prefix search served as static files. No RapidAPI subscription or credentials needed. See [geomelon.dev/free-city-autocomplete-api](https://geomelon.dev/free-city-autocomplete-api/) for the HTTP endpoint, supported country/language pairs, and response shape. Use an **HTTP Request** node to call it directly — this n8n node does not wrap the oneshot endpoint.
+Fast country-scoped city prefix search served as static files. No RapidAPI subscription or credentials needed — use **City: Oneshot Autocomplete** with a country code, language, and prefix; no credential needs to be attached to the node for this operation. See [geomelon.dev/free-city-autocomplete-api](https://geomelon.dev/free-city-autocomplete-api/) for supported country/language pairs and response shape.
+
+## Use as an AI Agent tool
+
+This node is tool-enabled (`usableAsTool`), so it can be attached directly to an **AI Agent** node's tool list — no separate "Call n8n Workflow" wrapper needed. The agent sees each operation's action description and picks the right one from natural-language input.
 
 ## Output
 
@@ -76,6 +81,11 @@ Fast country-scoped city prefix search served as static files. No RapidAPI subsc
 **Get all regions of Germany**
 1. Geomelon → Country: List → `name = Germany`, `limit = 1`
 2. Geomelon → Country: Get Regions → `countryId = {{ $json.id }}`
+
+**Autocomplete a city name as the user types (no API key)**
+1. Geomelon → City: Oneshot Autocomplete → `countryCode = ES`, `language = es`, `prefix = barc`
+
+See [`workflows/`](workflows/) for ready-to-import templates covering these and other patterns.
 
 ## License
 
