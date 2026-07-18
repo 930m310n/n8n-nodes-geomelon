@@ -3,7 +3,7 @@ import type { ICredentialTestRequest, ICredentialType, INodeProperties } from 'n
 export class GeomelonApi implements ICredentialType {
   name = 'geomelonApi';
   displayName = 'Geomelon API';
-  icon = 'file:../nodes/Geomelon/geomelon.svg' as const;
+  icon = 'file:../nodes/Geomelon/geomelon.png' as const;
   documentationUrl = 'https://rapidapi.com/hom3chuk/api/geomelon';
   properties: INodeProperties[] = [
     {

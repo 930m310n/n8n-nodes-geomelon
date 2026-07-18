@@ -14,7 +14,7 @@ export class Geomelon implements INodeType {
   description: INodeTypeDescription = {
     displayName: 'Geomelon',
     name: 'geomelon',
-    icon: 'file:geomelon.svg',
+    icon: { light: 'file:geomelon.png', dark: 'file:geomelon-dark.png' },
     group: ['transform'],
     version: 1,
     subtitle: '={{$parameter["resource"] + ": " + $parameter["operation"]}}',
@@ -695,10 +695,12 @@ export class Geomelon implements INodeType {
           throw new NodeApiError(this.getNode(), { message: error.message } as JsonObject, {
             message: error.message,
             httpCode: error.httpCode ?? undefined,
+            itemIndex: i,
           });
         }
         throw new NodeApiError(this.getNode(), { message: (error as Error).message } as JsonObject, {
           message: (error as Error).message,
+          itemIndex: i,
         });
       }
     }
